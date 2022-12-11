@@ -35,6 +35,8 @@ import java.util.Date;
 
 public class MainActivity extends AppCompatActivity implements LocationListener {
 
+    private static final long ONE_YEAR = 31_556_926_000L;
+
     protected class mWifiInfo {
         public String SSID;
         public int securityType;
@@ -97,7 +99,7 @@ public class MainActivity extends AppCompatActivity implements LocationListener 
             return;
         }
         LocationManager locationManager = (LocationManager) getSystemService(Context.LOCATION_SERVICE);
-        locationManager.requestLocationUpdates(LocationManager.GPS_PROVIDER, 1000 * 60, 10, this);
+        locationManager.requestLocationUpdates(LocationManager.GPS_PROVIDER, 1000 * 6, 10, this);
     }
 
     @Override
@@ -140,6 +142,21 @@ public class MainActivity extends AppCompatActivity implements LocationListener 
             String json = data.getString(wifiInfo.getSSID(), "");
             mWifiInfo obj = gson.fromJson(json, mWifiInfo.class);
             textView.setText(obj.toString());
+            textView.append("\n{"+currLocation.getLatitude()+", "+currLocation.getLongitude()+"}");
+
+            if( (new Date()).getTime() - obj.lastConnTime.getTime() > ONE_YEAR ){
+                textView.append("\n\nALERTA: Revise sua conexão, ja faz 1 ano desde que se conectou a esse SSID");
+            }
+            if( obj.securityType != wifiInfo.getCurrentSecurityType() ){
+                textView.append("\n\nALERTA: Revise sua conexão, o protocolo de segurança foi alterado");
+            }
+
+            float[] distance = new float[3];
+            Location.distanceBetween(currLocation.getLatitude(), currLocation.getLongitude(), obj.lastConnLat, obj.lastConnLon, distance);
+
+            if( distance[0] > 2000){
+                textView.append("\n\nALERTA: Revise sua conexão, sua ultima conexão foi em uma posição geografica consideravelmente distante");
+            }
         }else{
             textView.setText("SSID não encontrado: se tem confiança nessa rede " +
                                 "clique em store para armazená-la");
