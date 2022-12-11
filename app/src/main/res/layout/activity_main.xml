@@ -24,18 +24,18 @@
         android:layout_marginTop="88dp"
         android:onClick="buttonStoreSSID"
         android:text="Store"
-        app:layout_constraintEnd_toStartOf="@+id/load"
+        app:layout_constraintEnd_toStartOf="@+id/check"
         app:layout_constraintHorizontal_bias="0.5"
         app:layout_constraintStart_toStartOf="parent"
         app:layout_constraintTop_toTopOf="parent" />
 
     <Button
-        android:id="@+id/load"
+        android:id="@+id/check"
         android:layout_width="wrap_content"
         android:layout_height="wrap_content"
         android:layout_marginTop="88dp"
         android:onClick="buttonCheckSSID"
-        android:text="Load"
+        android:text="Check"
         app:layout_constraintEnd_toStartOf="@+id/button"
         app:layout_constraintHorizontal_bias="0.5"
         app:layout_constraintStart_toEndOf="@+id/store"
@@ -50,7 +50,7 @@
         android:text="Clear"
         app:layout_constraintEnd_toEndOf="parent"
         app:layout_constraintHorizontal_bias="0.5"
-        app:layout_constraintStart_toEndOf="@+id/load"
+        app:layout_constraintStart_toEndOf="@+id/check"
         app:layout_constraintTop_toTopOf="parent" />
 
 </androidx.constraintlayout.widget.ConstraintLayout>

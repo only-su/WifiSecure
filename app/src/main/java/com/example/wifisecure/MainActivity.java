@@ -7,13 +7,21 @@ import android.content.Context;
 import android.content.SharedPreferences;
 import android.content.pm.PackageManager;
 import android.location.Location;
+import android.location.LocationListener;
 import android.location.LocationManager;
+import android.net.ConnectivityManager;
+import android.net.NetworkCapabilities;
+import android.net.NetworkInfo;
+import android.net.NetworkRequest;
 import android.net.wifi.WifiInfo;
 import android.net.wifi.WifiManager;
+import android.net.wifi.p2p.WifiP2pManager;
 import android.os.Bundle;
+import android.util.Log;
 import android.view.View;
 import android.widget.TextView;
 
+import androidx.annotation.NonNull;
 import androidx.appcompat.app.AppCompatActivity;
 import androidx.core.app.ActivityCompat;
 
@@ -25,24 +33,45 @@ import com.google.gson.Gson;
 import java.time.Instant;
 import java.util.Date;
 
-public class MainActivity extends AppCompatActivity {
+public class MainActivity extends AppCompatActivity implements LocationListener {
 
-    private class mWifiInfo {
+    protected class mWifiInfo {
         public String SSID;
-        public Date lastConnTime;
-        public Location lastConnLocation;
+        public int securityType;
 
-        mWifiInfo(String SSID, Location currLocation) {
-            this.SSID = SSID;
+        public double lastConnLat;
+        public double lastConnLon;
+
+        public Date lastConnTime;
+
+        mWifiInfo(WifiInfo wifiInfo, Location loc) {
+            this.SSID = wifiInfo.getSSID();
+            this.securityType = wifiInfo.getCurrentSecurityType();
+
+            this.lastConnLat = loc.getLatitude();
+            this.lastConnLon = loc.getLongitude();
+
             this.lastConnTime = new Date();
-            this.lastConnLocation = currLocation;
+        }
+
+        @NonNull
+        @Override
+        public java.lang.String toString() {
+
+            return "{" +
+                    "SSID=" + SSID +
+                    ", securityType=" + securityType +
+                    ", latitude=" + lastConnLat +
+                    ", longitude=" + lastConnLon +
+                    ", lastConnTime=" + lastConnTime +
+                    '}';
         }
     }
 
     private SharedPreferences data;
     private WifiManager wifiManager;
 
-    private FusedLocationProviderClient fusedLocationClient;
+    private Location currLocation;
 
     private TextView textView;
 
@@ -50,6 +79,10 @@ public class MainActivity extends AppCompatActivity {
     protected void onCreate(Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
         setContentView(R.layout.activity_main);
+
+        textView = findViewById(R.id.textView);
+        wifiManager = (WifiManager) getSystemService(Context.WIFI_SERVICE);
+        data = getPreferences(Context.MODE_PRIVATE);
 
         ActivityCompat.requestPermissions(this,
                 new String[]{
@@ -60,56 +93,45 @@ public class MainActivity extends AppCompatActivity {
                 PackageManager.PERMISSION_GRANTED
         );
 
-        textView = findViewById(R.id.textView);
-        wifiManager = (WifiManager) getSystemService(Context.WIFI_SERVICE);
-        data = getPreferences(Context.MODE_PRIVATE);
+        if (ActivityCompat.checkSelfPermission(this, Manifest.permission.ACCESS_FINE_LOCATION) != PackageManager.PERMISSION_GRANTED && ActivityCompat.checkSelfPermission(this, Manifest.permission.ACCESS_COARSE_LOCATION) != PackageManager.PERMISSION_GRANTED) {
+            return;
+        }
+        LocationManager locationManager = (LocationManager) getSystemService(Context.LOCATION_SERVICE);
+        locationManager.requestLocationUpdates(LocationManager.GPS_PROVIDER, 1000 * 60, 10, this);
+    }
 
-        fusedLocationClient = LocationServices.getFusedLocationProviderClient(this);
+    @Override
+    public void onLocationChanged(Location location) {
+        currLocation = location;
+    }
 
+    @Override
+    public void onProviderDisabled(String provider) {
+        Log.d("Latitude","disable");
+    }
+
+    @Override
+    public void onProviderEnabled(String provider) {
+        Log.d("Latitude", "enable");
     }
 
     public void buttonStoreSSID(View view) {
         WifiInfo wifiInfo = wifiManager.getConnectionInfo();
         SharedPreferences.Editor edit = data.edit();
 
-        final Location[] currLocation = new Location[1];
-
-        if (ActivityCompat.checkSelfPermission(this, Manifest.permission.ACCESS_FINE_LOCATION) != PackageManager.PERMISSION_GRANTED && ActivityCompat.checkSelfPermission(this, Manifest.permission.ACCESS_COARSE_LOCATION) != PackageManager.PERMISSION_GRANTED) {
-            // TODO: Consider calling
-            //    ActivityCompat#requestPermissions
-            // here to request the missing permissions, and then overriding
-            //   public void onRequestPermissionsResult(int requestCode, String[] permissions,
-            //                                          int[] grantResults)
-            // to handle the case where the user grants the permission. See the documentation
-            // for ActivityCompat#requestPermissions for more details.
-            return;
-        }
-
-        fusedLocationClient.getLastLocation()
-                .addOnSuccessListener(this, new OnSuccessListener<Location>() {
-                    @Override
-                    public void onSuccess(Location location) {
-                        // Got last known location. In some rare situations this can be null.
-                        if (location != null) {
-                            currLocation[0] = location;
-                        }
-                    }
-                });
-
-        mWifiInfo CurrWifi = new mWifiInfo(
-                                    wifiInfo.getSSID(),
-                                    currLocation[0] //TODO como q localização funciona?
-                                );
+        mWifiInfo CurrWifi;
+        CurrWifi = new mWifiInfo(
+                wifiInfo,
+                currLocation
+        );
 
         Gson gson = new Gson();
         String json = gson.toJson(CurrWifi);
-
         edit.putString(wifiInfo.getSSID(), json);
         edit.apply();
 
     }
 
-    @SuppressLint("SetTextI18n")
     public void buttonCheckSSID(View view){
         WifiInfo wifiInfo = wifiManager.getConnectionInfo();
 
@@ -117,7 +139,7 @@ public class MainActivity extends AppCompatActivity {
             Gson gson = new Gson();
             String json = data.getString(wifiInfo.getSSID(), "");
             mWifiInfo obj = gson.fromJson(json, mWifiInfo.class);
-            textView.setText(json);
+            textView.setText(obj.toString());
         }else{
             textView.setText("SSID não encontrado: se tem confiança nessa rede " +
                                 "clique em store para armazená-la");
