@@ -14,6 +14,7 @@ import android.location.LocationListener;
 import android.location.LocationManager;
 import android.net.ConnectivityManager;
 import android.net.wifi.SupplicantState;
+import android.net.Uri;
 import android.net.wifi.WifiInfo;
 import android.net.wifi.WifiManager;
 import android.os.Build;
@@ -33,6 +34,7 @@ import androidx.core.app.NotificationManagerCompat;
 import com.google.gson.Gson;
 
 import java.io.PipedOutputStream;
+import java.security.Permission;
 import java.util.Date;
 
 public class MainActivity extends AppCompatActivity implements LocationListener {
@@ -99,6 +101,20 @@ public class MainActivity extends AppCompatActivity implements LocationListener 
                 PackageManager.PERMISSION_GRANTED
         );
 
+        if( !Settings.canDrawOverlays(this) ) {
+            AlertDialog.Builder builder = new AlertDialog.Builder(this)
+                    .setTitle("Permissão de overlay")
+                    .setMessage("Para que WiFiSecure funcione corretamente, é preciso fornecer permissão de overlay sobre outros aplicativos!")
+                    .setPositiveButton("Conceder permissão", (dialog, which) -> {
+                        Intent intent = new Intent(Settings.ACTION_MANAGE_OVERLAY_PERMISSION);
+                        intent.setData(Uri.fromParts("package", getPackageName(), null));
+                        startActivity(intent);
+                    });
+
+            AlertDialog dialog = builder.create();
+            dialog.show();
+        }
+
         if (ActivityCompat.checkSelfPermission(this, Manifest.permission.ACCESS_FINE_LOCATION) != PackageManager.PERMISSION_GRANTED && ActivityCompat.checkSelfPermission(this, Manifest.permission.ACCESS_COARSE_LOCATION) != PackageManager.PERMISSION_GRANTED) {
             return;
         }
@@ -122,6 +138,24 @@ public class MainActivity extends AppCompatActivity implements LocationListener 
     @Override
     public void onProviderEnabled(String provider) {
         Log.d("Latitude", "enable");
+    }
+
+    @Override
+    protected void onResume() {
+        super.onResume();
+        if( !Settings.canDrawOverlays(this) ) {
+            AlertDialog.Builder builder = new AlertDialog.Builder(this)
+                    .setTitle("Permissão de overlay")
+                    .setMessage("Para que WiFiSecure funcione corretamente, é preciso fornecer permissão de overlay sobre outros aplicativos!")
+                    .setPositiveButton("Conceder permissão", (dialog, which) -> {
+                        Intent intent = new Intent(Settings.ACTION_MANAGE_OVERLAY_PERMISSION);
+                        intent.setData(Uri.fromParts("package", getPackageName(), null));
+                        startActivity(intent);
+                    });
+
+            AlertDialog dialog = builder.create();
+            dialog.show();
+        }
     }
 
     public void buttonStoreSSID(View view) {
@@ -218,6 +252,19 @@ public class MainActivity extends AppCompatActivity implements LocationListener 
     }
 
     public void buttonClearData(View view) {
+        AlertDialog.Builder builder = new AlertDialog.Builder(this)
+                .setTitle("Limpar dados")
+                .setMessage("Deseja limpar todos os dados sobre rede WiFi armazenados pelo aplicativo?")
+                .setPositiveButton("Limpar", (dialog, which) -> {
+                    clearData();
+                })
+                .setNegativeButton("Cancelar", (dialog, which) -> {});
+
+        AlertDialog dialog = builder.create();
+        dialog.show();
+    }
+
+    public void clearData() {
         SharedPreferences.Editor edit = data.edit();
         edit.clear();
         edit.apply();
@@ -245,6 +292,8 @@ public class MainActivity extends AppCompatActivity implements LocationListener 
     }
 
     public void showUnsafeWifiDialog(String msg) {
+        if(!Settings.canDrawOverlays(this)) return;
+
         AlertDialog.Builder builder = new AlertDialog.Builder(this)
                 .setTitle("Rede WiFi insegura!")
                 .setMessage(msg)
