@@ -13,6 +13,7 @@ import android.location.Location;
 import android.location.LocationListener;
 import android.location.LocationManager;
 import android.net.ConnectivityManager;
+import android.net.wifi.SupplicantState;
 import android.net.wifi.WifiInfo;
 import android.net.wifi.WifiManager;
 import android.os.Build;
@@ -133,10 +134,13 @@ public class MainActivity extends AppCompatActivity implements LocationListener 
         if(check_res == 0) {
             textView.setText("SSID não encontrado: se tem confiança nessa rede " +
                     "clique em store para armazená-la");
+        } else if (check_res == -4) {
+            textView.setText("Para verificar, primeiro conecte-se a uma rede :)");
         } else {
             WifiInfo wifiInfo = wifiManager.getConnectionInfo();
             Gson gson = new Gson();
             String json = data.getString(wifiInfo.getSSID(), "");
+            Log.e("AQUIII ",wifiInfo.getSSID());
             mWifiInfo obj = gson.fromJson(json, mWifiInfo.class);
             textView.setText(obj.toString());
 
@@ -162,7 +166,7 @@ public class MainActivity extends AppCompatActivity implements LocationListener 
     public int checkWifiSSID() {
         WifiInfo wifiInfo = wifiManager.getConnectionInfo();
 
-        if(wifiInfo == null) return -4;
+        if(wifiInfo == null || (wifiInfo.getSupplicantState() != SupplicantState.COMPLETED)) return -4;
 
         if(data.contains(wifiInfo.getSSID())) {
             Gson gson = new Gson();
