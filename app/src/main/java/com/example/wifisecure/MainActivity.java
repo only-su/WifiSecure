@@ -5,24 +5,24 @@ import android.app.AlertDialog;
 import android.app.NotificationChannel;
 import android.app.NotificationManager;
 import android.content.Context;
-import android.content.DialogInterface;
 import android.content.Intent;
 import android.content.SharedPreferences;
 import android.content.pm.PackageManager;
 import android.location.Location;
 import android.location.LocationListener;
 import android.location.LocationManager;
-import android.net.ConnectivityManager;
 import android.net.wifi.SupplicantState;
 import android.net.Uri;
 import android.net.wifi.WifiInfo;
 import android.net.wifi.WifiManager;
-import android.os.Build;
 import android.os.Bundle;
 import android.provider.Settings;
+import android.text.Editable;
+import android.text.TextWatcher;
 import android.util.Log;
 import android.view.View;
 import android.view.WindowManager;
+import android.widget.NumberPicker;
 import android.widget.TextView;
 
 import androidx.annotation.NonNull;
@@ -30,16 +30,13 @@ import androidx.appcompat.app.AppCompatActivity;
 import androidx.core.app.ActivityCompat;
 import androidx.core.app.NotificationCompat;
 import androidx.core.app.NotificationManagerCompat;
+import androidx.core.content.ContextCompat;
 
 import com.google.gson.Gson;
 
-import java.io.PipedOutputStream;
-import java.security.Permission;
 import java.util.Date;
 
 public class MainActivity extends AppCompatActivity implements LocationListener {
-
-    private static final long ONE_YEAR = 31_556_926_000L;
 
     protected class mWifiInfo {
         public String SSID;
@@ -80,6 +77,12 @@ public class MainActivity extends AppCompatActivity implements LocationListener 
     private Location currLocation;
 
     private TextView textView;
+    private AlertDialog dialogOverlay;
+    private AlertDialog dialogLocation;
+
+    private final long DAY = 86_400_000L;
+    private int timeConstraint = 365;
+    private int spaceConstraint = 1000;
 
     @Override
     protected void onCreate(Bundle savedInstanceState) {
@@ -89,6 +92,22 @@ public class MainActivity extends AppCompatActivity implements LocationListener 
         textView = findViewById(R.id.textView);
         wifiManager = (WifiManager) getSystemService(Context.WIFI_SERVICE);
         data = getPreferences(Context.MODE_PRIVATE);
+
+        NumberPicker npSpaceValue = findViewById(R.id.npSpaceConstraint);
+        npSpaceValue.setMinValue(1);
+        npSpaceValue.setMaxValue(100000);
+        npSpaceValue.setValue(timeConstraint);
+        npSpaceValue.setOnValueChangedListener((picker, oldVal, newVal) -> {
+            timeConstraint = newVal;
+        });
+
+        NumberPicker npTimeValue = findViewById(R.id.npTimeConstraint);
+        npTimeValue.setMinValue(1);
+        npTimeValue.setMaxValue(100000);
+        npTimeValue.setValue(spaceConstraint);
+        npTimeValue.setOnValueChangedListener((picker, oldVal, newVal) -> {
+            spaceConstraint = newVal;
+        });
 
         ActivityCompat.requestPermissions(this,
                 new String[]{
@@ -101,6 +120,20 @@ public class MainActivity extends AppCompatActivity implements LocationListener 
                 PackageManager.PERMISSION_GRANTED
         );
 
+        if(ContextCompat.checkSelfPermission(this,Manifest.permission.ACCESS_BACKGROUND_LOCATION) != PackageManager.PERMISSION_GRANTED) {
+            AlertDialog.Builder builder = new AlertDialog.Builder(this)
+                    .setTitle("Permissão de backgorund location")
+                    .setMessage("Para que WiFiSecure funcione corretamente, é preciso fornecer permissão de acesso a localização em segundo plano!")
+                    .setPositiveButton("Conceder permissão", (dialog, which) -> {
+                        Intent intent = new Intent(Settings.ACTION_APPLICATION_DETAILS_SETTINGS);
+                        intent.setData(Uri.fromParts("package", getPackageName(), null));
+                        startActivity(intent);
+                    });
+
+            dialogLocation = builder.create();
+            if (dialogLocation != null && !dialogLocation.isShowing()) dialogLocation.show();
+        }
+
         if( !Settings.canDrawOverlays(this) ) {
             AlertDialog.Builder builder = new AlertDialog.Builder(this)
                     .setTitle("Permissão de overlay")
@@ -111,8 +144,8 @@ public class MainActivity extends AppCompatActivity implements LocationListener 
                         startActivity(intent);
                     });
 
-            AlertDialog dialog = builder.create();
-            dialog.show();
+            dialogOverlay = builder.create();
+            dialogOverlay.show();
         }
 
         if (ActivityCompat.checkSelfPermission(this, Manifest.permission.ACCESS_FINE_LOCATION) != PackageManager.PERMISSION_GRANTED && ActivityCompat.checkSelfPermission(this, Manifest.permission.ACCESS_COARSE_LOCATION) != PackageManager.PERMISSION_GRANTED) {
@@ -143,18 +176,41 @@ public class MainActivity extends AppCompatActivity implements LocationListener 
     @Override
     protected void onResume() {
         super.onResume();
-        if( !Settings.canDrawOverlays(this) ) {
-            AlertDialog.Builder builder = new AlertDialog.Builder(this)
-                    .setTitle("Permissão de overlay")
-                    .setMessage("Para que WiFiSecure funcione corretamente, é preciso fornecer permissão de overlay sobre outros aplicativos!")
-                    .setPositiveButton("Conceder permissão", (dialog, which) -> {
-                        Intent intent = new Intent(Settings.ACTION_MANAGE_OVERLAY_PERMISSION);
-                        intent.setData(Uri.fromParts("package", getPackageName(), null));
-                        startActivity(intent);
-                    });
 
-            AlertDialog dialog = builder.create();
-            dialog.show();
+        if( !Settings.canDrawOverlays(this) ) {
+            if (!dialogOverlay.isShowing()) return;
+
+            if (dialogOverlay == null){
+                AlertDialog.Builder builder = new AlertDialog.Builder(this)
+                        .setTitle("Permissão de overlay")
+                        .setMessage("Para que WiFiSecure funcione corretamente, é preciso fornecer permissão de overlay sobre outros aplicativos!")
+                        .setPositiveButton("Conceder permissão", (dialog, which) -> {
+                            Intent intent = new Intent(Settings.ACTION_MANAGE_OVERLAY_PERMISSION);
+                            intent.setData(Uri.fromParts("package", getPackageName(), null));
+                            startActivity(intent);
+                        });
+                dialogOverlay = builder.create();
+            }
+
+            dialogOverlay.show();
+        }
+
+        if(ContextCompat.checkSelfPermission(this,Manifest.permission.ACCESS_BACKGROUND_LOCATION) != PackageManager.PERMISSION_GRANTED) {
+            if (!dialogLocation.isShowing()) return;
+
+            if(dialogLocation == null) {
+                AlertDialog.Builder builder = new AlertDialog.Builder(this)
+                        .setTitle("Permissão de backgorund location")
+                        .setMessage("Para que WiFiSecure funcione corretamente, é preciso fornecer permissão de acesso a localização em segundo plano!")
+                        .setPositiveButton("Conceder permissão", (dialog, which) -> {
+                            Intent intent = new Intent(Settings.ACTION_APPLICATION_DETAILS_SETTINGS);
+                            intent.setData(Uri.fromParts("package", getPackageName(), null));
+                            startActivity(intent);
+                        });
+                dialogLocation = builder.create();
+            }
+
+            dialogLocation.show();
         }
     }
 
@@ -208,7 +264,7 @@ public class MainActivity extends AppCompatActivity implements LocationListener 
             mWifiInfo obj = gson.fromJson(json, mWifiInfo.class);
             Log.e("WifiSecure", "SSID: " + obj.toString());
 
-            if( (new Date()).getTime() - obj.lastConnTime.getTime() > ONE_YEAR ){
+            if( (new Date()).getTime() - obj.lastConnTime.getTime() > (timeConstraint * DAY)){
                 return -1;
             }
             if( obj.securityType != wifiInfo.getCurrentSecurityType() ){
@@ -219,7 +275,7 @@ public class MainActivity extends AppCompatActivity implements LocationListener 
                 float[] distance = new float[3];
                 Location.distanceBetween(currLocation.getLatitude(), currLocation.getLongitude(), obj.lastConnLat, obj.lastConnLon, distance);
 
-                if (distance[0] > 2000) {
+                if (distance[0] > spaceConstraint) {
                     return -3;
                 }
             }
